@@ -1,0 +1,13 @@
+# Core MCP dependencies
+fastmcp>=0.2.0
+python-dotenv>=1.0.0
+
+# Database client (add your specific client)
+aiomysql>=0.2.0  # for MySQL
+# asyncpg>=0.29.0  # for PostgreSQL
+# aiosqlite>=0.20.0  # for SQLite
+
+# Development and testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+aiofiles>=24.1.0
