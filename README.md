@@ -25,9 +25,36 @@ This MCP server provides secure access to MySQL databases through the Model Cont
 
 | Tool | Description | Safety Level |
 |------|-------------|--------------|
+| `list_databases` | List all available databases on the server | 🔒 Metadata |
+| `change_database` | Change active database for all subsequent operations | 🔧 Configuration |
 | `query_data` | Execute SELECT queries with automatic limits | 🔒 Read-only |
 | `list_tables` | List all available database tables | 🔒 Metadata |
 | `get_schema` | Get detailed table schema information | 🔒 Metadata |
+
+### 🎯 Database Switching Features
+
+#### **Two Approaches:**
+
+1. **Global Database Change (Persistent)**
+   ```python
+   # Change active database for all subsequent operations
+   await change_database("production_db")
+   await list_tables()  # Lists tables from production_db
+   await query_data("SELECT * FROM users LIMIT 5")  # Queries production_db
+   ```
+
+2. **Per-Query Database Selection (Temporary)**
+   ```python
+   # Specify database for individual operations without changing global context
+   await list_tables(database="analytics_db")  # Temporary switch to analytics_db
+   await query_data("SELECT COUNT(*) FROM logs", database="analytics_db")  # Query analytics_db
+   await list_tables()  # Still uses original database
+   ```
+
+#### **Enhanced Tool Parameters:**
+- `query_data(query: str, limit: int = 100, database: Optional[str] = None)`
+- `list_tables(database: Optional[str] = None)`
+- `get_schema(table_name: str, database: Optional[str] = None)`
 
 ## 📋 MCP Resources
 
@@ -61,8 +88,24 @@ DB_NAME=your_database
 DEBUG_MODE=false
 ```
 
-### 3. **Usage**
+### 3. **Server Startup**
 
+#### **Option A: Using Startup Script (Recommended)**
+```bash
+# Default STDIO transport
+./start_server.sh
+
+# SSE transport for web applications
+./start_server.sh --transport sse --port 8000
+
+# HTTP transport for REST API
+./start_server.sh --transport streamable-http --port 8000
+
+# Help
+./start_server.sh --help
+```
+
+#### **Option B: Direct Python Execution**
 ```bash
 # Help
 python3 mysql_server.py --help
@@ -76,6 +119,13 @@ python3 mysql_server.py --transport sse --port 8000
 # HTTP transport (for REST API access)
 python3 mysql_server.py --transport streamable-http --port 8000
 ```
+
+The startup script automatically:
+- ✅ Checks for virtual environment
+- ✅ Validates configuration files
+- ✅ Provides helpful error messages
+- ✅ Activates virtual environment
+- ✅ Handles graceful shutdown (Ctrl+C)
 
 ### 4. **Langflow Integration**
 
@@ -149,7 +199,13 @@ Run the included test suite:
 
 ```bash
 # Run all tests
-python3 test_live_mysql.py
+python3 tests/test_live_mysql.py
+
+# Test database switching functionality
+python3 tests/test_database_switching.py
+
+# Test without default database configuration
+python3 tests/test_no_default_database.py
 
 # Expected output:
 # 🎯 Tests passed: 6/6
@@ -157,12 +213,18 @@ python3 test_live_mysql.py
 ```
 
 **Test coverage:**
-- ✅ Database connection
-- ✅ List tables functionality
-- ✅ Schema retrieval
-- ✅ Query execution
+- ✅ Database connection and health checks
+- ✅ List databases functionality
+- ✅ Global database switching (`change_database`)
+- ✅ Per-query database selection (all tools with `database` parameter)
+- ✅ List tables functionality (current and specific databases)
+- ✅ Schema retrieval (current and specific databases)
+- ✅ Query execution with database switching
 - ✅ Security features (blocks INSERT/UPDATE/DELETE)
-- ✅ MCP resources
+- ✅ SHOW commands with proper result limiting
+- ✅ MCP resources (status, tables)
+- ✅ Error handling for missing default database
+- ✅ Graceful cleanup and connection management
 
 ## 🔒 Security Features
 
@@ -199,116 +261,214 @@ All tools return structured responses:
 
 ## 🐳 Docker Deployment
 
-### **Build and Run**
+### Building the Docker Image
 
 ```bash
-# Build image
-docker build -t mysql-mcp-server:latest .
-
-# Run with SSE transport
-docker run -d --name mysql-mcp-server \
-  -p 8000:8000 \
-  --env-file .env \
-  mysql-mcp-server:latest \
-  python3 mysql_server.py --transport sse --port 8000
+# Build the Docker image
+docker build -t mysql-mcp-server .
 ```
 
-### **Docker Compose**
+### Running with Docker
 
+#### Option 1: Using Environment File (Recommended)
+
+Create a `.env` file with your database configuration:
+```env
+DB_HOST=your-mysql-host
+DB_PORT=3306
+DB_USER=your-username
+DB_PASSWORD=your-password
+DB_NAME=your-database  # Optional - can be changed via tools
+```
+
+Run the container:
+```bash
+# Run with environment file
+docker run -d \
+  --name mysql-mcp-server-fssx0132x \
+  --network mynet \
+  -p 8087:8000 \
+  --env-file .env \
+  mysql-mcp-server
+```
+
+#### Option 2: Using Environment Variables
+
+```bash
+# Run with inline environment variables
+docker run -d \
+  --name mysql-mcp-server \
+  --network mynet \
+  -p 8087:8000 \
+  -e DB_HOST=your-mysql-host \
+  -e DB_PORT=3306 \
+  -e DB_USER=your-username \
+  -e DB_PASSWORD=your-password \
+  -e DB_NAME=your-database \
+  mysql-mcp-server
+```
+
+#### Option 3: Database-Specific Deployment
+
+For **IP Management** database:
+```bash
+docker run -d \
+  --name mysql-mcp-ipmanagement \
+  --network mynet \
+  -p 8087:8000 \
+  -e DB_NAME=ipmanagement \
+  --env-file .env \
+  mysql-mcp-server
+```
+
+For **DWH N8N** database:
+```bash
+docker run -d \
+  --name mysql-mcp-dwh-n8n \
+  --network mynet \
+  -p 8088:8000 \
+  -e DB_NAME=dwh-n8n \
+  --env-file .env \
+  mysql-mcp-server
+```
+
+### Docker Management Commands
+
+```bash
+# View logs
+docker logs mysql-mcp-server-fssx0132x
+
+# Stop container
+docker stop mysql-mcp-server-fssx0132x
+
+# Remove container
+docker rm mysql-mcp-server-fssx0132x
+
+# Restart container
+docker restart mysql-mcp-server-fssx0132x
+
+# Execute commands inside container
+docker exec -it mysql-mcp-server-fssx0132x bash
+```
+
+### Health Check
+
+Verify the server is running:
+```bash
+# Check if server responds
+curl http://localhost:8087/health
+
+# Or check container status
+docker ps | grep mysql-mcp-server
+```
+
+### Network Configuration
+
+The example uses a custom Docker network (`mynet`). Create it if it doesn't exist:
+```bash
+# Create custom network
+docker network create mynet
+
+# List networks
+docker network ls
+
+# Inspect network
+docker network inspect mynet
+```
+
+### Production Considerations
+
+For production deployment:
+
+1. **Use Docker Compose** for easier management:
 ```yaml
+# docker-compose.yml
 version: '3.8'
 services:
   mysql-mcp-server:
     build: .
+    container_name: mysql-mcp-server-fssx0132x
     ports:
-      - "8000:8000"
-    environment:
-      - DB_HOST=mysql-db
-      - DB_USER=root
-      - DB_PASSWORD=password
-      - DB_NAME=myapp
-    command: python3 mysql_server.py --transport sse --port 8000
-    depends_on:
-      - mysql-db
-      
-  mysql-db:
-    image: mysql:8.0
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: myapp
+      - "8087:8000"
+    env_file:
+      - .env
+    networks:
+      - mynet
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  mynet:
+    external: true
 ```
 
-## 🔧 Configuration
+2. **Environment Variables for Security**:
+   - Store sensitive data in `.env` file
+   - Don't include `.env` in version control
+   - Use Docker secrets for production
 
-### **Environment Variables**
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DB_HOST` | `localhost` | MySQL server hostname |
-| `DB_PORT` | `3306` | MySQL server port |
-| `DB_USER` | `root` | Database username |
-| `DB_PASSWORD` | `` | Database password |
-| `DB_NAME` | `mysql` | Database name |
-| `DEBUG_MODE` | `false` | Enable debug logging |
-
-### **Connection Pool Settings**
-
-- **Min Size**: 1 connection
-- **Max Size**: 10 connections  
-- **Charset**: utf8mb4
-- **Autocommit**: Enabled
-
-## 🚨 Troubleshooting
-
-### **Common Issues**
-
-**Connection Failed**
+3. **Resource Limits**:
 ```bash
-# Check MySQL service
-systemctl status mysql
-
-# Test connection manually
-mysql -h localhost -u root -p
+docker run -d \
+  --name mysql-mcp-server-fssx0132x \
+  --network mynet \
+  -p 8087:8000 \
+  --memory="512m" \
+  --cpus="0.5" \
+  --env-file .env \
+  mysql-mcp-server
 ```
 
-**Permission Denied**
+### Troubleshooting
+
+Common issues and solutions:
+
 ```bash
-# Grant SELECT permissions
-GRANT SELECT ON database.* TO 'username'@'%';
-FLUSH PRIVILEGES;
+# Check container logs for errors
+docker logs -f mysql-mcp-server-fssx0132x
+
+# Test database connectivity from container
+docker exec mysql-mcp-server-fssx0132x python -c "
+import mysql.connector
+import os
+try:
+    conn = mysql.connector.connect(
+        host=os.getenv('DB_HOST'),
+        port=int(os.getenv('DB_PORT', 3306)),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD')
+    )
+    print('✅ Database connection successful')
+    conn.close()
+except Exception as e:
+    print(f'❌ Database connection failed: {e}')
+"
+
+# Check if port is accessible
+telnet localhost 8087
 ```
 
-**Langflow Docker Connection**
-```bash
-# Use host IP instead of localhost
-# Find host IP: hostname -I | awk '{print $1}'
-# Use: http://HOST_IP:8000/sse
+## 🔗 MCP Client Connection
+
+Once the Docker container is running, connect your MCP client to:
+- **URL**: `http://localhost:8087`
+- **Transport**: Streamable HTTP (MCP 2024-11-05+)
+
+Example client configuration:
+```json
+{
+  "servers": {
+    "mysql-server": {
+      "url": "http://localhost:8087",
+      "transport": "streamable-http"
+    }
+  }
+}
 ```
-
-## 📈 Performance
-
-- **Connection Pooling**: 1-10 concurrent connections
-- **Query Limits**: Automatic LIMIT injection (default: 100 rows)
-- **Timeouts**: Configurable connection timeouts
-- **Memory Efficient**: Streaming results for large datasets
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- **Documentation**: This README and inline code comments
-- **Issues**: Report bugs via GitHub Issues
-- **MCP Protocol**: Learn more at [modelcontextprotocol.io](https://modelcontextprotocol.io/)
 
 ---
 

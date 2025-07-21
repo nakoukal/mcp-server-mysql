@@ -12,8 +12,8 @@ import os
 import json
 from typing import Dict, Any
 
-# Add current directory to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 async def test_database_connection():
     """Test basic database connection."""
@@ -101,12 +101,12 @@ async def test_query_data():
         result = await query_data(test_query, limit=5)
         print(f"📋 Query result: {json.dumps(result, indent=2, default=str)}")
         
-        if result["status"] == "success":
+        if result["success"]:
             print(f"✅ Query executed successfully")
-            print(f"📊 Returned {result['count']} rows")
+            print(f"📊 Returned {result['row_count']} rows")
             return True
         else:
-            print(f"❌ Query failed: {result['message']}")
+            print(f"❌ Query failed: {result['error']}")
             return False
     except Exception as e:
         print(f"❌ query_data error: {e}")
@@ -120,8 +120,8 @@ async def test_security_features():
         
         # Test 1: Try INSERT (should be blocked)
         print("🚫 Testing INSERT blocking...")
-        result = await query_data("INSERT INTO test VALUES (1)", limit=5)
-        if result["status"] == "error" and "Only SELECT queries" in result["message"]:
+        result = await query_data("INSERT INTO dummy VALUES (1)", limit=5)
+        if not result["success"] and "Only SELECT queries" in result["error"]:
             print("✅ INSERT queries properly blocked")
         else:
             print("❌ INSERT should be blocked")
@@ -129,8 +129,8 @@ async def test_security_features():
         
         # Test 2: Try UPDATE (should be blocked)
         print("🚫 Testing UPDATE blocking...")
-        result = await query_data("UPDATE test SET id = 1", limit=5)
-        if result["status"] == "error" and "Only SELECT queries" in result["message"]:
+        result = await query_data("UPDATE dummy SET id = 1", limit=5)
+        if not result["success"] and "Only SELECT queries" in result["error"]:
             print("✅ UPDATE queries properly blocked")
         else:
             print("❌ UPDATE should be blocked")
@@ -138,8 +138,8 @@ async def test_security_features():
         
         # Test 3: Try DELETE (should be blocked)
         print("🚫 Testing DELETE blocking...")
-        result = await query_data("DELETE FROM test", limit=5)
-        if result["status"] == "error" and "Only SELECT queries" in result["message"]:
+        result = await query_data("DELETE FROM dummy", limit=5)
+        if not result["success"] and "Only SELECT queries" in result["error"]:
             print("✅ DELETE queries properly blocked")
         else:
             print("❌ DELETE should be blocked")
@@ -222,5 +222,15 @@ async def run_all_tests():
     return passed == total
 
 if __name__ == "__main__":
-    success = asyncio.run(run_all_tests())
+    import mysql_server
+    
+    async def main():
+        try:
+            success = await run_all_tests()
+        finally:
+            # Cleanup global context to prevent connection warnings
+            await mysql_server.cleanup_global_context()
+        return success
+    
+    success = asyncio.run(main())
     sys.exit(0 if success else 1)
