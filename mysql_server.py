@@ -41,10 +41,13 @@ db_password = os.getenv('DB_PASSWORD', '')
 db_name = os.getenv('DB_NAME')  # Optional - server can start without default database
 debug_mode = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
 
-# Logging setup
+# Logging setup - CRITICAL: Must write to stderr for STDIO transport
+import sys
 logging.basicConfig(
     level=logging.DEBUG if debug_mode else logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stderr,  # Explicitly write to stderr for STDIO compatibility
+    force=True
 )
 logger = logging.getLogger("mysql-mcp")
 

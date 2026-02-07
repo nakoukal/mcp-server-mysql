@@ -3,14 +3,14 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mcp-server-qdrant"
+name = "mcp-server-mysql"
 version = "0.1.0"
-description = "Minimalistic MCP server for Qdrant vector database with FastMCP"
+description = "Production-ready MCP server for MySQL database with FastMCP"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "fastmcp>=0.1.0",
-    "qdrant-client>=1.6.0",
+    "fastmcp>=0.2.0",
+    "aiomysql>=0.2.0",
     "python-dotenv>=1.0.0",
     "uvicorn>=0.24.0"
 ]
@@ -24,7 +24,7 @@ dev = [
 ]
 
 [project.scripts]
-mcp-server-qdrant = "qdrant_server:main"
+mcp-server-mysql = "mysql_server:main"
 
 [tool.black]
 line-length = 88
