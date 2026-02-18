@@ -382,7 +382,7 @@ For production deployment:
 
 1. **Use Docker Compose** for easier management:
 ```yaml
-# docker-compose.yml
+# docker compose.yml
 version: '3.8'
 services:
   mysql-mcp-server:
