@@ -1,500 +1,331 @@
-# 🐬 MySQL MCP Server
+# MySQL MCP Server
 
 [![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-MCP-blue)](https://modelcontextprotocol.io/)
-[![FastMCP](https://img.shields.io/badge/FastMCP-v0.2.0-green)](https://github.com/jlowin/fastmcp)
+[![FastMCP](https://img.shields.io/badge/FastMCP-latest-green)](https://github.com/jlowin/fastmcp)
 [![MySQL](https://img.shields.io/badge/MySQL-Compatible-orange)](https://mysql.com)
 [![Python](https://img.shields.io/badge/Python-3.11+-blue)](https://python.org)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue)](https://docker.com)
 
-> **Production-ready MySQL MCP Server** providing safe database operations through Model Context Protocol.
+> MySQL MCP Server poskytující čtecí i zápisové operace do databáze skrze Model Context Protocol.
 
-## 🎯 About
+## O projektu
 
-This MCP server provides secure access to MySQL databases through the Model Context Protocol. Built with FastMCP and following security best practices, it offers read-only database operations with comprehensive error handling and logging.
+Server je postaven na FastMCP a aiomysql s connection poolingem. Podporuje více transportů (stdio, SSE, HTTP) a umožňuje pracovat s více databázemi v rámci jednoho připojení.
 
-### ✅ **Key Features:**
-- 🔒 **Security First** - Only SELECT queries allowed, SQL injection protection
-- 🚀 **High Performance** - Connection pooling with aiomysql
-- 📊 **Rich Metadata** - Table schemas, column details, structured responses
-- 🔍 **Smart Queries** - Automatic LIMIT injection, query validation
-- 🐳 **Docker Ready** - Container builds and deployment
-- 📈 **Multi-Transport** - stdio, SSE, and HTTP transports
-- 🛡️ **Error Handling** - Structured error responses with logging
+## MCP nástroje
 
-## 🛠️ MCP Tools
+| Nástroj | Popis | Typ operace |
+|---------|-------|-------------|
+| `list_databases` | Seznam všech databází na serveru | Metadata |
+| `change_database` | Přepnutí aktivní databáze | Konfigurace |
+| `query_data` | Spuštění SELECT dotazů s automatickým limitem | Čtení |
+| `execute_write` | Spuštění INSERT / UPDATE / DELETE v transakci | Zápis |
+| `list_tables` | Seznam tabulek v databázi | Metadata |
+| `get_schema` | Detailní schéma tabulky včetně komentářů | Metadata |
 
-| Tool | Description | Safety Level |
-|------|-------------|--------------|
-| `list_databases` | List all available databases on the server | 🔒 Metadata |
-| `change_database` | Change active database for all subsequent operations | 🔧 Configuration |
-| `query_data` | Execute SELECT queries with automatic limits | 🔒 Read-only |
-| `list_tables` | List all available database tables | 🔒 Metadata |
-| `get_schema` | Get detailed table schema information | 🔒 Metadata |
+### Parametry nástrojů
 
-### 🎯 Database Switching Features
+```
+query_data(query, limit=100, database=None)
+execute_write(query, params=None, database=None)
+list_tables(database=None)
+get_schema(table_name, database=None)
+```
 
-#### **Two Approaches:**
+Parametr `database` je volitelný u všech nástrojů — umožňuje dotaz na jinou než aktivní databázi bez změny globálního kontextu.
 
-1. **Global Database Change (Persistent)**
-   ```python
-   # Change active database for all subsequent operations
-   await change_database("production_db")
-   await list_tables()  # Lists tables from production_db
-   await query_data("SELECT * FROM users LIMIT 5")  # Queries production_db
-   ```
+## MCP Resources
 
-2. **Per-Query Database Selection (Temporary)**
-   ```python
-   # Specify database for individual operations without changing global context
-   await list_tables(database="analytics_db")  # Temporary switch to analytics_db
-   await query_data("SELECT COUNT(*) FROM logs", database="analytics_db")  # Query analytics_db
-   await list_tables()  # Still uses original database
-   ```
+| Resource | Popis |
+|----------|-------|
+| `mysql://status` | Health check databázového serveru |
+| `mysql://tables` | Rychlý výpis tabulek jako text |
 
-#### **Enhanced Tool Parameters:**
-- `query_data(query: str, limit: int = 100, database: Optional[str] = None)`
-- `list_tables(database: Optional[str] = None)`
-- `get_schema(table_name: str, database: Optional[str] = None)`
+## Rychlý start (lokálně)
 
-## 📋 MCP Resources
-
-| Resource | Description |
-|----------|-------------|
-| `mysql://status` | Database server health check |
-| `mysql://tables` | Quick tables list as text |
-
-## 🚀 Quick Start (lokálně bez Dockeru)
-
-### 1. **Klonování repozitáře**
+### 1. Klonování
 
 ```bash
 git clone <repo-url> mysql-mcp-server
 cd mysql-mcp-server
 ```
 
-### 2. **Vytvoření a aktivace virtuálního prostředí**
+### 2. Virtuální prostředí
 
 ```bash
-# Vytvoř virtuální prostředí (složka venv/ ve stejném adresáři)
 python3 -m venv venv
-
-# Aktivace na Linux/macOS
-source venv/bin/activate
-
-# Aktivace na Windows (PowerShell)
-# venv\Scripts\Activate.ps1
-
-# Ověření – měl by se zobrazit python z venv
-which python
+source venv/bin/activate          # Linux/macOS
+# venv\Scripts\Activate.ps1       # Windows (PowerShell)
 ```
 
-### 3. **Instalace závislostí**
+### 3. Instalace závislostí
 
 ```bash
-# Instalace všech závislostí ze souboru requirements.txt
 pip install -r requirements.txt
 ```
 
-### 4. **Konfigurace**
+### 4. Konfigurace
 
-Vytvoř soubor `.env` v kořenu projektu:
+Vytvoř `.env` soubor podle vzoru:
+
 ```bash
-# MySQL MCP Server Configuration
+cp .env.example .env
+```
+
+```env
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=your_user
 DB_PASSWORD=your_password
-DB_NAME=your_database
+DB_NAME=your_database   # volitelné — lze změnit za běhu přes change_database
 DEBUG_MODE=false
 ```
 
-### 5. **Spuštění serveru**
+### 5. Spuštění
 
-#### **Možnost A: Pomocí startovacího skriptu (doporučeno)**
 ```bash
-# STDIO transport (výchozí – pro MCP klienty jako Claude Desktop)
+# STDIO (výchozí — pro Claude Desktop a Claude Code)
 ./start_server.sh
 
-# SSE transport pro webové aplikace a Langflow
+# SSE (pro Langflow a webové aplikace)
 ./start_server.sh --transport sse --port 8000
 
-# HTTP transport pro REST API
+# HTTP
 ./start_server.sh --transport streamable-http --port 8000
-
-# Nápověda
-./start_server.sh --help
 ```
 
-Startovací skript automaticky:
-- ✅ Zkontroluje existenci virtuálního prostředí (`venv/`)
-- ✅ Ověří konfigurační soubory
-- ✅ Aktivuje virtuální prostředí
-- ✅ Vypíše srozumitelné chybové zprávy
-- ✅ Ošetří graceful shutdown (Ctrl+C)
+Nebo přímo Pythonem:
 
-#### **Možnost B: Přímé spuštění Pythonem**
 ```bash
-# Nejprve aktivuj venv (pokud ještě není aktivní)
-source venv/bin/activate
-
-# Nápověda
-python mysql_server.py --help
-
-# STDIO transport (pro MCP klienty jako Claude Desktop)
-python mysql_server.py
-
-# SSE transport (pro Langflow, webové aplikace)
+python mysql_server.py --transport stdio
 python mysql_server.py --transport sse --port 8000
-
-# HTTP transport (pro REST API)
 python mysql_server.py --transport streamable-http --port 8000
 ```
 
-> **Poznámka:** Virtuální prostředí deaktivuješ příkazem `deactivate`.
+## Konfigurace pro Claude Desktop
 
-### 4. **Langflow Integration**
+Soubor `claude_desktop_config.json` přidej do:
 
-For Langflow running in Docker container:
-
-1. **Start server:**
-   ```bash
-   python3 mysql_server.py --transport sse --port 8000
-   ```
-
-2. **In Langflow MCP Connection component:**
-   - **SSE URL**: `http://HOST_IP:8000/sse` (replace HOST_IP with your server IP)
-   - **Transport**: `sse`
-
-3. **Find your host IP:**
-   ```bash
-   hostname -I | awk '{print $1}'
-   ```
-
-## 🔧 Command Line Options
-
-```bash
-usage: mysql_server.py [-h] [--transport {stdio,sse,streamable-http}] [--port PORT]
-
-MySQL MCP Server - Secure database operations via Model Context Protocol
-
-options:
-  -h, --help            show this help message and exit
-  --transport {stdio,sse,streamable-http}
-                        Transport mode (default: stdio)
-  --port PORT           Port for SSE/HTTP transports (default: 8000)
-```
-
-### **Transport Types:**
-
-- **`stdio`** (default): For desktop MCP clients (Claude Desktop, etc.)
-- **`sse`**: For web applications and Langflow (Server-Sent Events)
-- **`streamable-http`**: For REST API access and HTTP clients
-
-## 💡 Usage Examples
-
-### **Basic Queries**
-```python
-# List all tables
-result = await mcp_client.call_tool("list_tables")
-print(f"Found {result['count']} tables")
-
-# Get table schema
-schema = await mcp_client.call_tool("get_schema", {"table_name": "users"})
-for col in schema['columns']:
-    print(f"{col['field']}: {col['type']}")
-
-# Execute query
-data = await mcp_client.call_tool("query_data", {
-    "query": "SELECT * FROM users WHERE active = 1",
-    "limit": 50
-})
-print(f"Found {data['count']} active users")
-```
-
-### **Health Check**
-```python
-# Check database status
-status = await mcp_client.get_resource("mysql://status")
-print(status)  # ✅ MySQL server is healthy and ready
-```
-
-## 🧪 Testing
-
-Run the included test suite:
-
-```bash
-# Run all tests
-python3 tests/test_live_mysql.py
-
-# Test database switching functionality
-python3 tests/test_database_switching.py
-
-# Test without default database configuration
-python3 tests/test_no_default_database.py
-
-# Expected output:
-# 🎯 Tests passed: 6/6
-# 🎉 All tests passed! MySQL MCP Server is fully functional.
-```
-
-**Test coverage:**
-- ✅ Database connection and health checks
-- ✅ List databases functionality
-- ✅ Global database switching (`change_database`)
-- ✅ Per-query database selection (all tools with `database` parameter)
-- ✅ List tables functionality (current and specific databases)
-- ✅ Schema retrieval (current and specific databases)
-- ✅ Query execution with database switching
-- ✅ Security features (blocks INSERT/UPDATE/DELETE)
-- ✅ SHOW commands with proper result limiting
-- ✅ MCP resources (status, tables)
-- ✅ Error handling for missing default database
-- ✅ Graceful cleanup and connection management
-
-## 🔒 Security Features
-
-### **Query Safety**
-- Only `SELECT` statements allowed
-- Automatic `LIMIT` injection if missing
-- SQL injection protection through parameterized queries
-- Input validation and sanitization
-
-### **Access Control**
-- Read-only database operations
-- Connection pooling with limits
-- Environment-based configuration
-- No DDL operations allowed
-
-### **Error Handling**
-- Structured error responses
-- Comprehensive logging with emojis
-- No sensitive data in error messages
-- Connection timeout management
-
-## 📊 Response Format
-
-All tools return structured responses:
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
 ```json
 {
-  "status": "success|error",
-  "message": "Human readable message", 
-  "data": "Tool-specific data",
-  "count": "Number of results"
+  "mcpServers": {
+    "mysql": {
+      "command": "/abs/cesta/k/venv/bin/python",
+      "args": ["/abs/cesta/k/mysql_server.py"],
+      "env": {
+        "DB_HOST": "localhost",
+        "DB_PORT": "3306",
+        "DB_USER": "your_user",
+        "DB_PASSWORD": "your_password",
+        "DB_NAME": "your_database",
+        "DEBUG_MODE": "false"
+      }
+    }
+  }
 }
 ```
 
-## 🐳 Docker Deployment
+Nebo s `.env` souborem (doporučeno pro bezpečnost):
 
-### Building the Docker Image
+```json
+{
+  "mcpServers": {
+    "mysql": {
+      "command": "/abs/cesta/k/venv/bin/python",
+      "args": ["/abs/cesta/k/mysql_server.py"],
+      "cwd": "/abs/cesta/k/mysql-mcp-server"
+    }
+  }
+}
+```
+
+## Příklady použití
+
+### Čtení dat
+
+```python
+# Seznam tabulek
+await mcp_client.call_tool("list_tables")
+
+# Schema tabulky
+await mcp_client.call_tool("get_schema", {"table_name": "users"})
+
+# SELECT dotaz
+await mcp_client.call_tool("query_data", {
+    "query": "SELECT * FROM users WHERE active = 1",
+    "limit": 50
+})
+
+# Dotaz na jinou databázi bez změny globálního kontextu
+await mcp_client.call_tool("query_data", {
+    "query": "SELECT COUNT(*) FROM logs",
+    "database": "analytics_db"
+})
+```
+
+### Zápis dat
+
+```python
+# INSERT — přímý dotaz
+await mcp_client.call_tool("execute_write", {
+    "query": "INSERT INTO users (name, email) VALUES ('Jan', 'jan@example.com')"
+})
+
+# INSERT — parametrizovaný (doporučeno, ochrana před SQL injection)
+await mcp_client.call_tool("execute_write", {
+    "query": "INSERT INTO users (name, email) VALUES (%s, %s)",
+    "params": ["Jan", "jan@example.com"]
+})
+
+# UPDATE
+await mcp_client.call_tool("execute_write", {
+    "query": "UPDATE users SET active = 0 WHERE last_login < %s",
+    "params": ["2024-01-01"]
+})
+
+# DELETE
+await mcp_client.call_tool("execute_write", {
+    "query": "DELETE FROM sessions WHERE expires_at < NOW()"
+})
+```
+
+Odpověď `execute_write`:
+
+```json
+{
+  "success": true,
+  "message": "Query executed successfully",
+  "query": "INSERT INTO users ...",
+  "database": "my_db",
+  "affected_rows": 1,
+  "last_insert_id": 42
+}
+```
+
+### Práce s více databázemi
+
+```python
+# Trvalá změna aktivní databáze
+await mcp_client.call_tool("change_database", {"database_name": "production_db"})
+
+# Jednorázový dotaz na jinou databázi
+await mcp_client.call_tool("list_tables", {"database": "analytics_db"})
+```
+
+## Bezpečnost
+
+### query_data (SELECT)
+- Povoleny pouze `SELECT` dotazy
+- Automatický `LIMIT` pokud chybí
+- SQL injection ochrana přes aiomysql
+
+### execute_write (INSERT / UPDATE / DELETE / REPLACE)
+- Povoleny pouze DML operace — DDL (`CREATE`, `DROP`, `ALTER`) jsou blokovány
+- Každý dotaz běží v explicitní transakci; při chybě se automaticky provede `ROLLBACK`
+- Podporuje parametrizované dotazy (`params`) pro bezpečné předávání hodnot
+
+### Obecně
+- Connection pooling s omezeným počtem spojení
+- Konfigurace přes `.env` (neverzovaný soubor)
+- Logy na stderr, žádná citlivá data v chybových zprávách
+
+## Testování
 
 ```bash
-# Build the Docker image
+# Aktivuj venv
+source venv/bin/activate
+
+# Testy připojení a základních operací
+python tests/test_live_mysql.py
+
+# Test přepínání databází
+python tests/test_database_switching.py
+
+# Test bez výchozí databáze
+python tests/test_no_default_database.py
+
+# Test STDIO transportu
+python tests/test_stdio_transport.py
+```
+
+## Docker
+
+### Build a spuštění
+
+```bash
 docker build -t mysql-mcp-server .
-```
 
-### Running with Docker
-
-#### Option 1: Using Environment File (Recommended)
-
-Create a `.env` file with your database configuration:
-```env
-DB_HOST=your-mysql-host
-DB_PORT=3306
-DB_USER=your-username
-DB_PASSWORD=your-password
-DB_NAME=your-database  # Optional - can be changed via tools
-```
-
-Run the container:
-```bash
-# Run with environment file
-docker run -d \
-  --name mysql-mcp-server-fssx0132x \
-  --network mynet \
-  -p 8087:8000 \
-  --env-file .env \
-  mysql-mcp-server
-```
-
-#### Option 2: Using Environment Variables
-
-```bash
-# Run with inline environment variables
 docker run -d \
   --name mysql-mcp-server \
   --network mynet \
-  -p 8087:8000 \
-  -e DB_HOST=your-mysql-host \
-  -e DB_PORT=3306 \
-  -e DB_USER=your-username \
-  -e DB_PASSWORD=your-password \
-  -e DB_NAME=your-database \
-  mysql-mcp-server
-```
-
-#### Option 3: Database-Specific Deployment
-
-For **IP Management** database:
-```bash
-docker run -d \
-  --name mysql-mcp-ipmanagement \
-  --network mynet \
-  -p 8087:8000 \
-  -e DB_NAME=ipmanagement \
+  -p 8000:8000 \
   --env-file .env \
   mysql-mcp-server
 ```
 
-For **DWH N8N** database:
-```bash
-docker run -d \
-  --name mysql-mcp-dwh-n8n \
-  --network mynet \
-  -p 8088:8000 \
-  -e DB_NAME=dwh-n8n \
-  --env-file .env \
-  mysql-mcp-server
-```
+### Docker Compose
 
-### Docker Management Commands
-
-```bash
-# View logs
-docker logs mysql-mcp-server-fssx0132x
-
-# Stop container
-docker stop mysql-mcp-server-fssx0132x
-
-# Remove container
-docker rm mysql-mcp-server-fssx0132x
-
-# Restart container
-docker restart mysql-mcp-server-fssx0132x
-
-# Execute commands inside container
-docker exec -it mysql-mcp-server-fssx0132x bash
-```
-
-### Health Check
-
-Verify the server is running:
-```bash
-# Check if server responds
-curl http://localhost:8087/health
-
-# Or check container status
-docker ps | grep mysql-mcp-server
-```
-
-### Network Configuration
-
-The example uses a custom Docker network (`mynet`). Create it if it doesn't exist:
-```bash
-# Create custom network
-docker network create mynet
-
-# List networks
-docker network ls
-
-# Inspect network
-docker network inspect mynet
-```
-
-### Production Considerations
-
-For production deployment:
-
-1. **Use Docker Compose** for easier management:
 ```yaml
-# docker compose.yml
-version: '3.8'
 services:
   mysql-mcp-server:
     build: .
-    container_name: mysql-mcp-server-fssx0132x
     ports:
-      - "8087:8000"
+      - "8000:8000"
     env_file:
       - .env
     networks:
       - mynet
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
 networks:
   mynet:
     external: true
 ```
 
-2. **Environment Variables for Security**:
-   - Store sensitive data in `.env` file
-   - Don't include `.env` in version control
-   - Use Docker secrets for production
-
-3. **Resource Limits**:
-```bash
-docker run -d \
-  --name mysql-mcp-server-fssx0132x \
-  --network mynet \
-  -p 8087:8000 \
-  --memory="512m" \
-  --cpus="0.5" \
-  --env-file .env \
-  mysql-mcp-server
-```
-
-### Troubleshooting
-
-Common issues and solutions:
+### Správa kontejneru
 
 ```bash
-# Check container logs for errors
-docker logs -f mysql-mcp-server-fssx0132x
-
-# Test database connectivity from container
-docker exec mysql-mcp-server-fssx0132x python -c "
-import mysql.connector
-import os
-try:
-    conn = mysql.connector.connect(
-        host=os.getenv('DB_HOST'),
-        port=int(os.getenv('DB_PORT', 3306)),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASSWORD')
-    )
-    print('✅ Database connection successful')
-    conn.close()
-except Exception as e:
-    print(f'❌ Database connection failed: {e}')
-"
-
-# Check if port is accessible
-telnet localhost 8087
+docker logs -f mysql-mcp-server
+docker restart mysql-mcp-server
+docker exec -it mysql-mcp-server bash
 ```
 
-## 🔗 MCP Client Connection
+## Langflow integrace
 
-Once the Docker container is running, connect your MCP client to:
-- **URL**: `http://localhost:8087`
-- **Transport**: Streamable HTTP (MCP 2024-11-05+)
+1. Spusť server v SSE módu:
+   ```bash
+   python mysql_server.py --transport sse --port 8000
+   ```
 
-Example client configuration:
-```json
-{
-  "servers": {
-    "mysql-server": {
-      "url": "http://localhost:8087",
-      "transport": "streamable-http"
-    }
-  }
-}
+2. V Langflow MCP Connection komponentě:
+   - **SSE URL**: `http://<HOST_IP>:8000/sse`
+   - **Transport**: `sse`
+
+3. Zjištění IP adresy hosta:
+   ```bash
+   hostname -I | awk '{print $1}'
+   ```
+
+## Struktura projektu
+
 ```
-
----
-
-**Built with ❤️ for the MCP community** | **Production-ready MySQL database access**
+mysql-mcp-server/
+├── mysql_server.py          # Hlavní MCP server
+├── start_server.sh          # Startovací skript
+├── requirements.txt         # Python závislosti
+├── pyproject.toml
+├── Dockerfile
+├── .env.example             # Vzorová konfigurace
+├── claude_desktop_config.json  # Vzorová konfigurace pro Claude Desktop
+├── tests/
+│   ├── test_live_mysql.py
+│   ├── test_database_switching.py
+│   ├── test_no_default_database.py
+│   ├── test_stdio_transport.py
+│   └── ...
+└── CLAUDE_SETUP.md          # Průvodce nastavením pro Claude Desktop / Claude Code
+```

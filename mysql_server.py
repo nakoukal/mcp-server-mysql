@@ -7,8 +7,9 @@ Official implementation using MCP Python SDK with FastMCP.
 Provides only database operations as MCP tools:
 
 TOOLS:
-- query_data: Execute safe database queries
-- list_tables: List available tables  
+- query_data: Execute safe database queries (SELECT only)
+- execute_write: Execute write queries (INSERT, UPDATE, DELETE) with transaction support
+- list_tables: List available tables
 - get_schema: Get table schema information
 
 RESOURCES:
@@ -281,6 +282,93 @@ async def query_data(query: str, limit: int = 100, database: Optional[str] = Non
             "query": query,
             "database": database or "current"
         }
+
+@mcp.tool()
+async def execute_write(query: str, params: Optional[List[Any]] = None, database: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Execute a write SQL query (INSERT, UPDATE, DELETE) with transaction support.
+    The query runs inside a transaction and is automatically committed on success
+    or rolled back on error.
+
+    Args:
+        query: SQL write query to execute (INSERT, UPDATE, DELETE)
+        params: Optional list of parameters for parameterized queries (prevents SQL injection)
+        database: Optional database name to use for this query (uses current if not specified)
+
+    Returns:
+        Dictionary containing execution result with affected_rows and last_insert_id
+    """
+    logger.info("✏️ Executing write query")
+    logger.debug(f"Query: {query}")
+
+    ALLOWED_PREFIXES = ("INSERT", "UPDATE", "DELETE", "REPLACE")
+
+    query_stripped = query.strip()
+    query_upper = query_stripped.upper()
+
+    if not any(query_upper.startswith(prefix) for prefix in ALLOWED_PREFIXES):
+        return {
+            "success": False,
+            "error": f"Only {', '.join(ALLOWED_PREFIXES)} queries are allowed. Use query_data for SELECT.",
+            "query": query,
+            "database": database or "current",
+            "affected_rows": 0,
+            "last_insert_id": None,
+        }
+
+    try:
+        async with get_context(database) as ctx:
+            async with ctx.pool.acquire() as conn:
+                if database:
+                    async with conn.cursor() as cursor:
+                        await cursor.execute(f"USE `{database}`")
+
+                # Disable autocommit to use explicit transaction
+                await conn.begin()
+                try:
+                    async with conn.cursor() as cursor:
+                        if params:
+                            await cursor.execute(query_stripped, params)
+                        else:
+                            await cursor.execute(query_stripped)
+
+                        affected_rows = cursor.rowcount
+                        last_insert_id = cursor.lastrowid
+
+                    await conn.commit()
+
+                    # Resolve current database name for response
+                    async with conn.cursor() as db_cursor:
+                        await db_cursor.execute("SELECT DATABASE()")
+                        current_db_row = await db_cursor.fetchone()
+                        current_database = current_db_row[0] if current_db_row else database or "unknown"
+
+                    logger.info(f"✅ Write query executed successfully. Affected rows: {affected_rows}")
+                    return {
+                        "success": True,
+                        "message": "Query executed successfully",
+                        "query": query_stripped,
+                        "database": current_database,
+                        "affected_rows": affected_rows,
+                        "last_insert_id": last_insert_id if last_insert_id else None,
+                    }
+
+                except Exception:
+                    await conn.rollback()
+                    raise
+
+    except Exception as e:
+        error_msg = f"Write query failed: {type(e).__name__}: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        return {
+            "success": False,
+            "error": error_msg,
+            "query": query,
+            "database": database or "current",
+            "affected_rows": 0,
+            "last_insert_id": None,
+        }
+
 
 @mcp.tool()
 async def list_databases() -> Dict[str, Any]:
