@@ -63,21 +63,41 @@ This MCP server provides secure access to MySQL databases through the Model Cont
 | `mysql://status` | Database server health check |
 | `mysql://tables` | Quick tables list as text |
 
-## 🚀 Quick Start
+## 🚀 Quick Start (lokálně bez Dockeru)
 
-### 1. **Installation**
+### 1. **Klonování repozitáře**
 
 ```bash
-# Clone or create project directory
-mkdir mysql-mcp-server && cd mysql-mcp-server
-
-# Install dependencies
-pip install fastmcp aiomysql python-dotenv pytest
+git clone <repo-url> mysql-mcp-server
+cd mysql-mcp-server
 ```
 
-### 2. **Configuration**
+### 2. **Vytvoření a aktivace virtuálního prostředí**
 
-Create `.env` file:
+```bash
+# Vytvoř virtuální prostředí (složka venv/ ve stejném adresáři)
+python3 -m venv venv
+
+# Aktivace na Linux/macOS
+source venv/bin/activate
+
+# Aktivace na Windows (PowerShell)
+# venv\Scripts\Activate.ps1
+
+# Ověření – měl by se zobrazit python z venv
+which python
+```
+
+### 3. **Instalace závislostí**
+
+```bash
+# Instalace všech závislostí ze souboru requirements.txt
+pip install -r requirements.txt
+```
+
+### 4. **Konfigurace**
+
+Vytvoř soubor `.env` v kořenu projektu:
 ```bash
 # MySQL MCP Server Configuration
 DB_HOST=localhost
@@ -88,44 +108,49 @@ DB_NAME=your_database
 DEBUG_MODE=false
 ```
 
-### 3. **Server Startup**
+### 5. **Spuštění serveru**
 
-#### **Option A: Using Startup Script (Recommended)**
+#### **Možnost A: Pomocí startovacího skriptu (doporučeno)**
 ```bash
-# Default STDIO transport
+# STDIO transport (výchozí – pro MCP klienty jako Claude Desktop)
 ./start_server.sh
 
-# SSE transport for web applications
+# SSE transport pro webové aplikace a Langflow
 ./start_server.sh --transport sse --port 8000
 
-# HTTP transport for REST API
+# HTTP transport pro REST API
 ./start_server.sh --transport streamable-http --port 8000
 
-# Help
+# Nápověda
 ./start_server.sh --help
 ```
 
-#### **Option B: Direct Python Execution**
+Startovací skript automaticky:
+- ✅ Zkontroluje existenci virtuálního prostředí (`venv/`)
+- ✅ Ověří konfigurační soubory
+- ✅ Aktivuje virtuální prostředí
+- ✅ Vypíše srozumitelné chybové zprávy
+- ✅ Ošetří graceful shutdown (Ctrl+C)
+
+#### **Možnost B: Přímé spuštění Pythonem**
 ```bash
-# Help
-python3 mysql_server.py --help
+# Nejprve aktivuj venv (pokud ještě není aktivní)
+source venv/bin/activate
 
-# STDIO transport (for MCP clients like Claude Desktop)
-python3 mysql_server.py
+# Nápověda
+python mysql_server.py --help
 
-# SSE transport (for Langflow, web applications)
-python3 mysql_server.py --transport sse --port 8000
+# STDIO transport (pro MCP klienty jako Claude Desktop)
+python mysql_server.py
 
-# HTTP transport (for REST API access)
-python3 mysql_server.py --transport streamable-http --port 8000
+# SSE transport (pro Langflow, webové aplikace)
+python mysql_server.py --transport sse --port 8000
+
+# HTTP transport (pro REST API)
+python mysql_server.py --transport streamable-http --port 8000
 ```
 
-The startup script automatically:
-- ✅ Checks for virtual environment
-- ✅ Validates configuration files
-- ✅ Provides helpful error messages
-- ✅ Activates virtual environment
-- ✅ Handles graceful shutdown (Ctrl+C)
+> **Poznámka:** Virtuální prostředí deaktivuješ příkazem `deactivate`.
 
 ### 4. **Langflow Integration**
 
