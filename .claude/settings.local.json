@@ -3,7 +3,8 @@
     "allow": [
       "mcp__mysql__list_tables",
       "mcp__mysql__get_schema",
-      "mcp__mysql__query_data"
+      "mcp__mysql__query_data",
+      "Bash(git fetch:*)"
     ]
   }
 }
