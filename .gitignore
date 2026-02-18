@@ -88,3 +88,6 @@ coverage.xml
 
 # Qdrant storage (if running local instance)
 qdrant_storage/
+
+# Test scripts with sensitive connection data
+test_connection.py
